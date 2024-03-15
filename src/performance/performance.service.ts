@@ -1,47 +1,70 @@
-import _ from 'lodash';
-import { parse } from 'papaparse';
-import { Repository } from 'typeorm';
-
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreatePerformanceDto } from './dto/create-performance.dto';
-import { UpdatePerformanceDto } from './dto/update-performance.dto';
+import { InjectRepository } from '@nestjs/typeorm';
 import { Performance } from './entities/performance.entity';
+import { Like, Repository } from 'typeorm';
+import { FindAllPerformanceDto } from './dto/find-all-performance.dto';
 
 @Injectable()
 export class PerformanceService {
-  constructor(@InjectRepository(Performance)
-  private readonly performanceRepository: Repository<Performance>,
-  ){}
+  constructor(
+    @InjectRepository(Performance) private readonly performanceRepository: Repository<Performance>,
+  ) {}
 
   async create(createPerformanceDto: CreatePerformanceDto) {
-    return (await this.performanceRepository.save(createPerformanceDto)).id;
-  }
+    const { schedules, seats, ...restOfPerformance } = createPerformanceDto;
 
-  async findAll(): Promise<Performance[]> {
-    return await this.performanceRepository.find({
-      select: ['id']
+    const existedPerformance = await this.performanceRepository.findOneBy({
+      title: createPerformanceDto.title,
     });
-  }
 
-  async findOne(id: number) {
-    return await this.verifyPerformanceById(id);
-  }
-
-  private async verifyPerformanceById(id: number){
-    const performance = await this.performanceRepository.findOneBy({ id });
-    if (_.isNil(performance)) {
-      throw new NotFoundException('존재하지 않는 공연입니다.');
+    if (existedPerformance) {
+      throw new BadRequestException('이미 사용 중인 공연명입니다.');
     }
+
+    const performance = await this.performanceRepository.save({
+      ...restOfPerformance,
+      schedules: schedules.map((schedule) => ({
+        ...schedule,
+        seat: {
+          availableSeats: seats,
+          totalSeats: seats,
+        },
+      })),
+    });
 
     return performance;
   }
 
-  // update(id: number, updatePerformanceDto: UpdatePerformanceDto) {
-  //   return `This action updates a #${id} performance`;
-  // }
+  async findAll({ keyword, category }: FindAllPerformanceDto) {
+    const performances = await this.performanceRepository.find({
+      where: {
+        ...(keyword && { title: Like(`%${keyword}%`) }),
+        ...(category && { category }),
+      },
+    });
 
-  // remove(id: number) {
-  //   return `This action removes a #${id} performance`;
-  // }
+    return performances;
+  }
+
+  async findOne(id: number) {
+    const performance = await this.performanceRepository.findOne({
+      where: { id },
+      relations: {
+        schedules: {
+          seat: true,
+        },
+      },
+    });
+
+    if (!performance) {
+      throw new NotFoundException('공연을 찾을 수 없습니다.');
+    }
+
+    return performance;
+  }
 }

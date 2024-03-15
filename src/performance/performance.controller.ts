@@ -2,10 +2,17 @@ import { Roles } from 'src/auth/roles.decorator';
 import { RolesGuard } from 'src/auth/roles.guard';
 import { Role } from 'src/user/types/userRole.type';
 
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import {   Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  HttpStatus,
+  Query,
+  UseGuards } from '@nestjs/common';
 import { PerformanceService } from './performance.service';
 import { CreatePerformanceDto } from './dto/create-performance.dto';
-import { UpdatePerformanceDto } from './dto/update-performance.dto';
+import { FindAllPerformanceDto } from './dto/find-all-performance.dto';
 
 @UseGuards(RolesGuard)
 @Controller('performance')
@@ -13,31 +20,36 @@ export class PerformanceController {
   constructor(private readonly performanceService: PerformanceService) {}
 
   @Get()
-  findAll() {
-    return this.performanceService.findAll();
+  async findAll(@Query() findAllPerformanceDto: FindAllPerformanceDto) {
+    const data = await this.performanceService.findAll(findAllPerformanceDto);
+
+    return {
+      statusCode: HttpStatus.OK,
+      message: '공연 목록 조회에 성공했습니다.',
+      data,
+    };
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.performanceService.findOne(+id);
+  async findOne(@Param('id') id: number) {
+    const data = await this.performanceService.findOne(id);
+
+    return {
+      statusCode: HttpStatus.OK,
+      message: '공연 상세 조회에 성공했습니다.',
+      data,
+    };
   }
 
   @Roles(Role.Admin)
   @Post()
-  create(@Body() createPerformanceDto: CreatePerformanceDto) {
-    return this.performanceService.create(createPerformanceDto);
+  async create(@Body() createPerformanceDto: CreatePerformanceDto) {
+    const data = await this.performanceService.create(createPerformanceDto);
+
+    return {
+      statusCode: HttpStatus.CREATED,
+      message: '공연 생성에 성공했습니다.',
+      data,
+    };
   }
-
-  // 수정 삭제는 보류
-  // @Roles(Role.Admin)
-  // @Patch(':id')
-  // update(@Param('id') id: string, @Body() updatePerformanceDto: UpdatePerformanceDto) {
-  //   return this.performanceService.update(+id, updatePerformanceDto);
-  // }
-
-  // @Roles(Role.Admin)
-  // @Delete(':id')
-  // remove(@Param('id') id: string) {
-  //   return this.performanceService.remove(+id);
-  // }
 }
